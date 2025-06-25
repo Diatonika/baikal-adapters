@@ -1,0 +1,188 @@
+name: Main Pipeline
+
+on: [ push ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    env:
+      NEXUS_READ_USER: ${{ secrets.NEXUS_READ_USER }}
+      NEXUS_READ_PASS: ${{ secrets.NEXUS_READ_PASS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python ${{ vars.PYTHON_VERSION }} Environment Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION }}
+      - name: Environment Preparation
+        run: pip install "poetry >= 2.0" "rust-just >= 1.0"
+      - name: Dependencies Installation
+        run: just init-lint
+      - name: Format
+        id: format
+        run: just format-check
+        continue-on-error: true
+      - name: Lint
+        id: lint
+        run: just lint-check
+        continue-on-error: true
+      - name: Failure Action
+        if: steps.format.outcome == 'failure' || steps.lint.outcome == 'failure'
+        run: exit 1
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    env:
+      NEXUS_READ_USER: ${{ secrets.NEXUS_READ_USER }}
+      NEXUS_READ_PASS: ${{ secrets.NEXUS_READ_PASS }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Python ${{ vars.PYTHON_VERSION }} Environment Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ vars.PYTHON_VERSION }}
+      - name: Environment Preparation
+        run: pip install "poetry >= 2.0" "rust-just >= 1.0"
+      - name: Dependencies Installation
+        run: just init-test
+      - name: Run PyTest
+        run: just test-all
+
+  semantic-release:
+    name: Semantic Release Bump
+    needs: [ lint, test ]
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main'
+
+    outputs:
+      prerelease: ${{ steps.release.outputs.is_prerelease }}
+      released: ${{ steps.release.outputs.released }}
+      sha: ${{ steps.push.outputs.commit-sha }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Generate Automation Access Token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AUTOMATION_ID_APP }}
+          private-key: ${{ secrets.AUTOMATION_SSH_PRIVATE }}
+      - name: Generate Git Name & Email
+        id: bot-credentials
+        run: |
+          echo 'bot-email=${{ secrets.AUTOMATION_ID_USER }}+${{ steps.bot-token.outputs.app-slug }}[bot]@users.noreply.github.com' >> $GITHUB_OUTPUT
+          echo 'bot-name=${{ steps.bot-token.outputs.app-slug }}[bot]' >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+          token: ${{ steps.bot-token.outputs.token }}
+      - name: Invoke Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v9
+        with:
+          build: ${{ vars.PYTHON_PUBLISH == 'true' }}
+          commit: false
+          github_token: ${{ steps.bot-token.outputs.token }}
+          git_committer_email: ${{ steps.bot-credentials.outputs.bot-email }}
+          git_committer_name: ${{ steps.bot-credentials.outputs.bot-name }}
+          tag: false
+          vcs_release: false
+        env:
+          NEXUS_READ_USER: ${{ secrets.NEXUS_READ_USER }}
+          NEXUS_READ_PASS: ${{ secrets.NEXUS_READ_PASS }}
+      - name: Commit & Tag Semantic Version Changes
+        id: push
+        if: steps.release.outputs.released == 'true'
+        uses: ryancyq/github-signed-commit@v1
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        with:
+          commit-message: ${{ steps.release.outputs.version }}
+          files: |
+            CHANGELOG.md
+            pyproject.toml
+          tag: ${{ steps.release.outputs.version }}
+      - name: Upload Wheel Artifact
+        if: steps.release.outputs.released == 'true' && vars.PYTHON_PUBLISH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-wheel
+          path: ${{ github.workspace }}/dist/*.whl
+      - name: Upload Dist Artifact
+        if: steps.release.outputs.released == 'true' && vars.PYTHON_PUBLISH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dist
+          path: ${{ github.workspace }}/dist/*.tar.gz
+
+  release:
+    name: Create GitHub Release
+    needs: [ semantic-release ]
+    runs-on: ubuntu-latest
+
+    if: needs.semantic-release.outputs.released == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.semantic-release.outputs.sha }}
+      - name: Download Build Artifacts
+        if: ${{ vars.PYTHON_PUBLISH == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - name: Create Release Notes
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          # https://github.com/marketplace/actions/release-changelog-builder
+          # Uncomment the following line and populate configuration file with relevant configuration.
+          # configuration: changelog-config.json
+          failOnError: true
+          outputFile: RELEASE.md
+          token: ${{ github.token }}
+          toTag: ${{ needs.semantic-release.outputs.version }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE.md
+          fail_on_unmatched_files: false
+          files: dist/*
+          generate_release_notes: false
+          prerelease: ${{ needs.semantic-release.outputs.prerelease }}
+          tag_name: ${{ needs.semantic-release.outputs.version }}
+
+  publish:
+    name: Publish to PyPI
+    needs: [ semantic-release ]
+    runs-on: ubuntu-latest
+
+    if: needs.semantic-release.outputs.released == 'true' && vars.PYTHON_PUBLISH == 'true'
+
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist
+      - name: Push Dist to PyPI
+        run: curl -F package=@$(find ./dist -maxdepth 1 -name *.tar.gz) https://${{ secrets.NEXUS_WRITE_USER }}@push.fury.io/zitrasa/
