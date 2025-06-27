@@ -1,6 +1,15 @@
 # CHANGELOG
 
 
+## v0.3.1 (2025-06-27)
+
+### Bug Fixes
+
+- **binance**: Fix ohlcv progress bar completion calculation
+  ([#3](https://github.com/Diatonika/baikal-adapters/pull/3),
+  [`8ef083b`](https://github.com/Diatonika/baikal-adapters/commit/8ef083b837bc28b8df152d8d805fd1fa7e27e9b6))
+
+
 ## v0.3.0 (2025-06-27)
 
 ### Features
