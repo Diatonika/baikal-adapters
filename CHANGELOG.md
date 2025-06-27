@@ -1,6 +1,15 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-06-27)
+
+### Features
+
+- **binance**: Support ohlcv loading progress indicators
+  ([#2](https://github.com/Diatonika/baikal-adapters/pull/2),
+  [`d442161`](https://github.com/Diatonika/baikal-adapters/commit/d4421618349d1338aa04be472572fce08f6151ef))
+
+
 ## v0.2.0 (2025-06-27)
 
 ### Build System
@@ -10,9 +19,6 @@
 
 - Change project name
   ([`5619163`](https://github.com/Diatonika/baikal-adapters/commit/56191630b41e4f9c2185a8448464840dcf8851cb))
-
-
-## v0.1.0 (2025-06-27)
 
 ### Features
 
