@@ -34,13 +34,13 @@ tests-mypy = ["mypy (>=1.11.1)", "pytest-mypy-plugins"]
 
 [[package]]
 name = "baikal-common"
-version = "0.11.0"
+version = "0.12.0"
 description = "Baikal Common Utilities"
 optional = false
 python-versions = ">= 3.12"
 groups = ["main"]
 files = [
-    {file = "baikal-common-0.11.0.tar.gz", hash = "sha256:f943616b25a6a7506da46e33473dee941f26af513d9735c3825ce1bc6071fdde"},
+    {file = "baikal-common-0.12.0.tar.gz", hash = "sha256:3ac0d849a984932a0c748575c95134c358bda87c696f71e9a3f59c2bc9712d6c"},
 ]
 
 [package.dependencies]
@@ -1430,4 +1430,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">= 3.12, < 4.0"
-content-hash = "21ef008e0f326fee5f4d0bb40012bcaadb3b6d974b8c7ab7a7246d7f90731b2d"
+content-hash = "4aabf207e50e7e488d7d0d11639fba414d9d2945dc3f472afda40770057ce10d"
