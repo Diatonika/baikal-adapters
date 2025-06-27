@@ -18,12 +18,13 @@ from polars import (
     lit,
     read_csv,
 )
+from rich.progress import Progress
 
 from baikal.adapters.binance._data_granularity import BinanceDataGranularity
 from baikal.adapters.binance._ohlcv import BinanceOHLCV
 from baikal.adapters.binance.config import BinanceDataConfig
 from baikal.adapters.binance.enums import BinanceInstrumentType
-from baikal.common.rich import with_handler
+from baikal.common.rich import RichConsoleStack, with_handler
 from baikal.common.trade.models import OHLCV
 
 
@@ -149,14 +150,29 @@ class BinanceAdapter:
         granularity: BinanceDataGranularity,
     ) -> DataFrame[BinanceOHLCV]:
         chunks: list[PolarDataFrame] = []
+        interval_seconds = (end - start).total_seconds()
 
-        chunk_date_time = start
-        while chunk_date_time < end:
-            chunk = self._load_ohlcv_file(config, chunk_date_time.date(), granularity)
-            if chunk is not None:
-                chunks.append(chunk)
+        with Progress(
+            console=RichConsoleStack.active_console(), transient=True
+        ) as progress:
+            task = progress.add_task(
+                f"Loading {granularity} {config.symbol}-{config.interval} OHLCV"
+            )
 
-            chunk_date_time = granularity.next_chunk(chunk_date_time)
+            chunk_date_time = start
+            while chunk_date_time < end:
+                chunk = self._load_ohlcv_file(
+                    config, chunk_date_time.date(), granularity
+                )
+
+                if chunk is not None:
+                    chunks.append(chunk)
+
+                chunk_date_time = granularity.next_chunk(chunk_date_time)
+
+                loaded_seconds = (chunk_date_time - start).total_seconds()
+                completed_percentage = (interval_seconds / loaded_seconds) * 100
+                progress.update(task, completed=completed_percentage)
 
         if not len(chunks):
             return DataFrame[BinanceOHLCV]({}, BinanceOHLCV.column_names())
