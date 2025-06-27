@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.2.0 (2025-06-27)
+
+### Build System
+
+- Change project name
+  ([`17e2688`](https://github.com/Diatonika/baikal-adapters/commit/17e268880d7b3af9022c66c069403620c8c594a9))
+
+- Change project name
+  ([`5619163`](https://github.com/Diatonika/baikal-adapters/commit/56191630b41e4f9c2185a8448464840dcf8851cb))
+
+
 ## v0.1.0 (2025-06-27)
 
 ### Features
