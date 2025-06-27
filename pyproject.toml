@@ -5,7 +5,7 @@ requires = ["poetry-core"]
 [project]
 authors = [{ name = "Valery Ratsko", email = "<zitrasa@yandex.ru>" }]
 description = "Baikal Template Repository"
-name = "baikal-template"
+name = "baikal-adapters"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">= 3.12, < 4.0"
