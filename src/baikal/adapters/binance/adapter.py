@@ -8,6 +8,8 @@ from pandera.typing.polars import DataFrame
 from polars import (
     DataFrame as PolarDataFrame,
     Expr,
+    Int16,
+    Int64,
     LazyFrame as PolarLazyFrame,
     coalesce,
     col,
@@ -132,8 +134,8 @@ class BinanceAdapter:
         ambiguous_entries_count: int = ambiguous_entries.select(length()).item()
         if ambiguous_entries_count:
             self.LOGGER.warning(
-                f"{config.symbol}: "
-                f"found {ambiguous_entries_count} ambiguous entries: "
+                f"{config.symbol}-{config.interval}: "
+                f"found {ambiguous_entries_count} ambiguous entries\n"
                 f"{ambiguous_entries}"
             )
 
@@ -156,7 +158,7 @@ class BinanceAdapter:
             console=RichConsoleStack.active_console(), transient=True
         ) as progress:
             task = progress.add_task(
-                f"Loading {granularity} {config.symbol}-{config.interval} OHLCV"
+                f"{granularity} {config.symbol}-{config.interval} OHLCV"
             )
 
             chunk_date_time = start
@@ -171,7 +173,7 @@ class BinanceAdapter:
                 chunk_date_time = granularity.next_chunk(chunk_date_time)
 
                 loaded_seconds = (chunk_date_time - start).total_seconds()
-                completed_percentage = (interval_seconds / loaded_seconds) * 100
+                completed_percentage = (loaded_seconds / interval_seconds) * 100
                 progress.update(task, completed=completed_percentage)
 
         if not len(chunks):
@@ -190,10 +192,17 @@ class BinanceAdapter:
         if path is None:
             return None
 
+        raw_schema = BinanceOHLCV.polar_schema() | {
+            "date_time": Int64,
+            "close_date_time": Int64,
+            "ignore": Int16,
+        }
+
         raw_data = read_csv(
             ZipFile(path).read(path.with_suffix(".csv").name),
             has_header=False,
             new_columns=BinanceOHLCV.column_names(),
+            schema=raw_schema,
         ).with_columns(
             date_time=self._from_unix(config, "date_time", date),
             close_date_time=self._from_unix(config, "close_date_time", date),
